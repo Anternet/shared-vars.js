@@ -36,3 +36,9 @@ localVar.once('update', function(timestamp) {
   assert.equal(localVar.value, 'hello');
 });
 ```
+
+## License
+
+Copyright &copy; 2016 Moshe Simantov <ms@development.co.il>
+
+[MIT License](LICENSE)

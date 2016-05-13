@@ -31,3 +31,23 @@ node_modules
 
 # Optional REPL history
 .node_repl_history
+
+# OS or Editor folders
+.DS_Store
+._*
+Thumbs.db
+.cache
+.project
+.settings
+.tmproj
+*.esproj
+nbproject
+*.sublime-project
+*.sublime-workspace
+*.komodoproject
+.komodotools
+.hg
+.svn
+.CVS
+.idea
+.monitor

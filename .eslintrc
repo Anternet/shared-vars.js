@@ -1,0 +1,24 @@
+{
+  "env": {
+    "node": true,
+    "es6": true
+  },
+  "extends": "airbnb",
+  "rules": {
+    "max-len": [
+      2,
+      125,
+      2,
+      {
+        "comments": 130
+      }
+    ],
+    "no-unused-vars": [
+      2,
+      {
+        "argsIgnorePattern": "^_"
+      }
+    ],
+    "consistent-return": 0
+  }
+}

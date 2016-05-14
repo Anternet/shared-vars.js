@@ -18,21 +18,18 @@ const RID_TIMEOUT = 10e3;
 const BUFFER_ENCODING = 'hex';
 const PUBLIC_ASYNC_LIMIT = 100;
 
-function Shared(opts) {
-  if (!(this instanceof Shared))
-    return new Shared(opts);
+function Shared(opts = {}) {
+  if (!(this instanceof Shared)) return new Shared(opts);
 
   Shared.super_.call(this);
-  if(!opts) opts = {};
 
-  const self = this;
   this._socket = opts.socket || dgram.createSocket(opts);
   this._parser = new MsgPack();
 
   this._rids = {};
   this._nextRid = Math.random() * RID_MAX;
   this._requestTypesMap = {
-    [MSG_TYPE_PING]: this._pingHandler
+    [MSG_TYPE_PING]: this._pingHandler,
   };
 
   this._peers = [];
@@ -40,61 +37,57 @@ function Shared(opts) {
   this._peersVarsMap = {};
   this._varsMap = {};
 
-  initSocket(this, this._socket);
+  initSocket.call(this, this._socket);
 }
 util.inherits(Shared, EventEmitter);
- module.exports = Shared;
+module.exports = Shared;
 const proto = Shared.prototype;
-
 
 
 /** protocol methods **/
 
 proto.connect =
-proto.ping = function(address, port, callback) {
+proto.ping = (address, port, callback = port) => {
   const rinfo = parseRinfo(address, port);
-  if(rinfo.port !== port) callback = port;
 
-  const self = this;
-  const rid = this._genRid(rinfo, function(err) {
-    if(err) {
-      self._removePeer(rinfo);
+  const rid = this._genRid(rinfo, (err) => {
+    if (err) {
+      this._removePeer(rinfo);
     } else {
-      self._addPeer(rinfo);
+      this._addPeer(rinfo);
     }
 
-    if(callback) callback.call(this, arguments);
+    if (callback) callback.call(this, arguments);
   });
 
   this.send([MSG_TYPE_PING, rid], rinfo);
 };
 
-proto.assign = function(value) {
+proto.assign = (value) => {
   return new SharedVar(this, null, null, value);
 };
 
-proto.get = function(publicKey) {
+proto.get = (publicKey) => {
   return new SharedVar(this, publicKey);
 };
 
-proto.lookup = function(publicKey, currentSig, callback) {
+proto.lookup = (publicKey, currentSig, callback) => {
   const key = publicKey.toString(BUFFER_ENCODING);
 
   let peers = this._peersVarsMap[key];
-  if(!peers) peers = this._peers;
+  if (!peers) peers = this._peers;
 
-  const self = this;
-  let newPeers = [];
+  const newPeers = [];
   let latest = currentSig || null;
 
-  async.eachLimit(peers, PUBLIC_ASYNC_LIMIT, function (peer, callback) {
-    const rid = self._genRid(peer, function (err, data) {
-      if(err || !data.length) return callback();
+  async.eachLimit(peers, PUBLIC_ASYNC_LIMIT, (peer, callback) => {
+    const rid = this._genRid(peer, (err, data) => {
+      if (err || !data.length) return callback();
 
       const sig = data[0];
-      if(!(sig instanceof Signature) || !sig.publicKey.equals(publicKey) || !sig.verify()) return callback();
+      if (!(sig instanceof Signature) || !sig.publicKey.equals(publicKey) || !sig.verify()) return callback();
 
-      if(!latest || sig.betterThen(latest)) {
+      if (!latest || sig.betterThen(latest)) {
         latest = sig;
       }
 
@@ -102,37 +95,35 @@ proto.lookup = function(publicKey, currentSig, callback) {
       callback();
     });
 
-    self.send([MSG_TYPE_GET, rid, publicKey]);
-  }, function() {
-    self._peersVarsMap[key] = newPeers;
+    this.send([MSG_TYPE_GET, rid, publicKey]);
+  }, () => {
+    this._peersVarsMap[key] = newPeers;
 
-    if(!callback) return;
+    if (!callback) return;
     callback(null, latest);
   });
 
   return this;
-
 };
 
-proto.publish = function(sharedVar, callback) {
+proto.publish = (sharedVar, callback) => {
   const key = sharedVar.publicKey.toString(BUFFER_ENCODING);
   this._varsMap[key] = sharedVar;
 
-  if(!this._peersVarsMap[key]) return this;
+  if (!this._peersVarsMap[key]) return this;
 
-  const self = this;
   const peers = this._peersVarsMap[key];
   let errors = 0;
 
-  async.eachLimit(peers, PUBLIC_ASYNC_LIMIT, function (peer, callback) {
-    const rid = self._genRid(peer, function (err) {
-      if(err) errors++;
+  async.eachLimit(peers, PUBLIC_ASYNC_LIMIT, (peer, callback) => {
+    const rid = this._genRid(peer, (err) => {
+      if (err) errors++;
       callback();
     });
 
-    self.send([MSG_TYPE_PUBLISH, rid, sharedVar.signature]);
-  }, function () {
-    if(!callback) return;
+    this.send([MSG_TYPE_PUBLISH, rid, sharedVar.signature]);
+  }, () => {
+    if (!callback) return;
 
     callback(null, peers.length - errors);
   });
@@ -140,29 +131,27 @@ proto.publish = function(sharedVar, callback) {
   return this;
 };
 
-proto.onPublish = function(publicKey, listener) {
-  var event = publicKey.toString(BUFFER_ENCODING);
+proto.onPublish = (publicKey, listener) => {
+  const event = publicKey.toString(BUFFER_ENCODING);
   this.on(event, listener);
 };
 
-proto.download = function(signature, callback) {
-
-};
+// proto.download = (signature, callback) => {
+//
+// };
 
 
 /** socket methods **/
 
-proto.address = function () {
+proto.address = () => {
   return this._socket.address.apply(this._socket, arguments);
 };
 
-proto.send = function (data, address, port, callback) {
+proto.send = (data, address, port, callback = port) => {
   const buf = this._parser.encode(data);
   const rinfo = parseRinfo(address, port);
-  if(rinfo.port !== port) callback = port;
 
   this._socket.send(buf, 0, buf.length, rinfo.port, rinfo.address, callback);
-
   return this;
 };
 
@@ -170,9 +159,9 @@ proto.send = function (data, address, port, callback) {
   'bind', 'close',
   'addMembership', 'dropMembership',
   'setBroadcast', 'setMulticastLoopback', 'setMulticastTTL',
-  'ref', 'unref'
-].forEach(function(method) {
-  proto[method] = function () {
+  'ref', 'unref',
+].forEach(method => {
+  proto[method] = () => {
     this._socket[method].apply(this._socket, arguments);
     return this;
   };
@@ -183,9 +172,9 @@ proto.send = function (data, address, port, callback) {
 
 
 [
-  'register', 'decode', 'encode'
-].forEach(function(method) {
-  proto[method] = function () {
+  'register', 'decode', 'encode',
+].forEach(method => {
+  proto[method] = () => {
     this._socket[method].apply(this._socket, arguments);
     return this;
   };
@@ -194,42 +183,43 @@ proto.send = function (data, address, port, callback) {
 
 /** protected methods **/
 
-proto._addPeer = function(rinfo) {
-  const key = rinfo.address + ':' + rinfo.port;
-  if(this._peersMap.hasOwnProperty(key)) return;
+proto._addPeer = (rinfo) => {
+  const key = `${rinfo.address}:${rinfo.port}`;
+  if (this._peersMap.hasOwnProperty(key)) return;
 
   const peer = {
     address: rinfo.address,
-    port: rinfo.port
+    port: rinfo.port,
   };
   this._peersMap[key] = peer;
 };
 
-proto._removePeer = function(rinfo) {
-  const key = rinfo.address + ':' + rinfo.port;
-  if(!this._peersMap.hasOwnProperty(key)) return;
+proto._removePeer = (rinfo) => {
+  const key = `${rinfo.address}:${rinfo.port}`;
+  if (!this._peersMap.hasOwnProperty(key)) return;
 
-  //const peer = this._peersMap[key];
+  // const peer = this._peersMap[key];
   delete this._peersMap[key];
 };
 
-proto._handleMessage = function(data, rinfo) {
-  if(!Array.isArray(data) || data.length < 2) return;
+proto._handleMessage = (data, rinfo) => {
+  if (!Array.isArray(data) || data.length < 2) return;
 
-  const type = data.shift(), rid = data.shift();
-  if(typeof type !== 'number' || typeof rid !== 'number') return;
+  const type = data.shift();
+  const rid = data.shift();
+  if (typeof type !== 'number' || typeof rid !== 'number') return;
 
-  if(type === MSG_TYPE_RESPONSE) {
+  if (type === MSG_TYPE_RESPONSE) {
     this._handleResponse(data, rid, rinfo);
-  } else if(type > MSG_TYPE_RESPONSE) {
+  } else if (type > MSG_TYPE_RESPONSE) {
     this._handleRequest(data, type, rid, rinfo);
-  } else if(type < MSG_TYPE_RESPONSE) {
+  } else if (type < MSG_TYPE_RESPONSE) {
     this._handleErrorResponse(data, type, rid, rinfo);
   }
 };
 
-proto._handleRequest = function(data, type, rid, rinfo) {
-  if(!this._requestTypesMap[type]) {
+proto._handleRequest = (data, type, rid, rinfo) => {
+  if (!this._requestTypesMap[type]) {
     this.send([MSG_TYPE_ERROR_UNKNOWN, rid, 'Unknown request type'], rinfo);
     return;
   }
@@ -238,74 +228,72 @@ proto._handleRequest = function(data, type, rid, rinfo) {
   handler.call(this, data, rid, rinfo);
 };
 
-proto._handleResponse = function(data, rid, rinfo) {
+proto._handleResponse = (data, rid, rinfo) => {
   const callback = this._getRidCallback(rid, rinfo);
-  if(!callback) return;
+  if (!callback) return;
 
   callback(null, data, rinfo);
 };
 
-proto._handleErrorResponse = function(data, code, rid, rinfo) {
+proto._handleErrorResponse = (data, code, rid, rinfo) => {
   const callback = this._getRidCallback(rid, rinfo);
-  if(!callback) return;
+  if (!callback) return;
 
-  const err = new Error(data.shift() || ('error code: ' + code));
+  const err = new Error(data.shift() || (`error code: ${code}`));
   err.code = code;
 
   callback(err, data, rinfo);
 };
 
-proto._pingHandler = function(data, rid, rinfo) {
+proto._pingHandler = (data, rid, rinfo) => {
   this.send([MSG_TYPE_RESPONSE, rid], rinfo);
 };
 
-proto._close = function() {
+proto._close = () => {
   this._socket = null;
 };
 
-proto._genRid = function(rinfo, callback) {
+proto._genRid = (rinfo, callback) => {
   const rid = this._getNextRid();
-  const self = this;
 
-  let obj = this._rids[rid] = {
+  const obj = this._rids[rid] = {
     rinfo,
     callback,
-    timeout: setTimeout(function() {
-      delete self._rids[rid];
+    timeout: setTimeout(() => {
+      delete this._rids[rid];
       obj.callback(new Error('TIMEOUT'));
-    }, RID_TIMEOUT)
+    }, RID_TIMEOUT),
   };
 
   return rid;
 };
 
-proto._getRidCallback = function(rid, rinfo) {
-  if(!this._rids[rid]) return;
+proto._getRidCallback = (rid, rinfo) => {
+  if (!this._rids[rid]) return;
 
   const obj = this._rids[rid];
-  if(!rinfoEqual(obj.rinfo, rinfo)) return;
+  if (!rinfoEqual(obj.rinfo, rinfo)) return;
 
-  const self = this;
-  return function(err) {
-    if(obj.callback.apply(self, arguments) === true && !err) return;
+  return (err) => {
+    if (obj.callback.apply(self, arguments) === true && !err) return;
 
     clearTimeout(obj.timeout);
-    delete self._rids[rid];
+    delete this._rids[rid];
   };
 };
 
-proto._getNextRid = function() {
+proto._getNextRid = () => {
   const start = this._nextRid;
   const now = Date.now();
 
   let rid = this._nextRid++;
-  if(this._nextRid > RID_MAX) this._nextRid = 0;
+  if (this._nextRid > RID_MAX) this._nextRid = 0;
 
-  while(this._rids[rid] && this._rids[rid].ttl > now) {
+  while (this._rids[rid] && this._rids[rid].ttl > now) {
     rid = this._nextRid++;
-    if(this._nextRid > RID_MAX) this._nextRid = 0;
+    if (this._nextRid > RID_MAX) this._nextRid = 0;
 
-    if(rid === start) throw new Error('No new request ids left');
+    if (rid === start) throw new Error('No new request ids left');
   }
 
   return rid;
@@ -314,46 +302,48 @@ proto._getNextRid = function() {
 
 /** local helpers **/
 
-function initSocket(self, socket) {
-  socket.on('close', function () {
-    self._close();
-    self.emit('close');
+function initSocket(socket) {
+  socket.on('close', () => {
+    this._close();
+    this.emit('close');
   });
 
-  socket.on('error', function (err) {
-    if(!self.emit('error', err)) throw err;
+  socket.on('error', (err) => {
+    if (!this.emit('error', err)) throw err;
 
     try {
-      self._close();
-    } catch(err) {
-      console.warn(err.stack);
+      this._close();
+    } catch (ex) {
+      // ignore closing errors
     }
   });
 
-  socket.on('listening', function () {
-    self.emit('listening');
+  socket.on('listening', () => {
+    this.emit('listening');
   });
 
-  socket.on('message', function (buf, rinfo) {
+  socket.on('message', (buf, rinfo) => {
+    let data;
+
     try {
-      var data = self.decode(buf);
-    } catch(err) {
+      data = self.decode(buf);
+    } catch (err) {
       return;
     }
 
-    self.emit('message', data, rinfo);
-    self._handleMessage(data, rinfo);
+    this.emit('message', data, rinfo);
+    this._handleMessage(data, rinfo);
   });
 }
 
 function parseRinfo(address, port) {
-  if(typeof address !== 'string') return address;
-  if(typeof port === 'number') return {address, port};
+  if (typeof address !== 'string') return address;
+  if (typeof port === 'number') return { address, port };
 
-  let i = address.lastIndexOf(':');
+  const i = address.lastIndexOf(':');
   return {
     address: parseInt(address.substr(i + 1), 10),
-    port: address.substr(0, i)
+    port: address.substr(0, i),
   };
 }
 

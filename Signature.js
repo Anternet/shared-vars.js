@@ -12,7 +12,7 @@ const HASH_LENGTH = 32;
 const BUFFER_LENGTH = PUBLIC_KEY_LENGTH + SIGNATURE_LENGTH + TIMESTAMP_LENGTH + HASH_LENGTH;
 
 
-function Signature (timestamp, valueHash, publicKey, signature) {
+function Signature(timestamp, valueHash, publicKey, signature) {
   this.publicKey = publicKey;
   this.valueHash = valueHash;
   this.timestamp = timestamp;
@@ -24,12 +24,11 @@ module.exports = Signature;
 
 /** static methods **/
 
-Signature.fromBuffer = function(buffer, publicKey) {
-  if(buffer.length !== BUFFER_LENGTH)
-    throw new Error('Invalid buffer length');
+Signature.fromBuffer = (buffer) => {
+  if (buffer.length !== BUFFER_LENGTH) throw new Error('Invalid buffer length');
 
   let end = PUBLIC_KEY_LENGTH;
-  publicKey = buffer.slice(0, end);
+  const publicKey = buffer.slice(0, end);
 
   let start = end; end = start + SIGNATURE_LENGTH;
   const signature = buffer.slice(start, end);
@@ -43,70 +42,70 @@ Signature.fromBuffer = function(buffer, publicKey) {
   return new this(timestamp, valueHash, publicKey, signature);
 };
 
-Signature.sign = function(privateKey, valueHash, timestamp = new Date()) {
-  const hash = Signature.createHash().update(this.valueHash).update(timeToBuffer(timestamp.getTime())).digest();
+Signature.sign = (privateKey, valueHash, timestamp = new Date()) => {
+  const hash = Signature.createHash()
+  .update(this.valueHash)
+  .update(timeToBuffer(timestamp.getTime()))
+  .digest();
+
   const signObj = secp256k1.sign(hash, privateKey);
   const publicKey = Signature.generatePrivateKey(privateKey);
 
   return new this(timestamp, valueHash, publicKey, signObj.signature);
 };
 
-Signature.createHash = function() {
+Signature.createHash = () => {
   return crypto.createHash(HASH_ALGORITHM);
 };
 
-Signature.generatePrivateKey = function(callback) {
-  if(callback === undefined) {
-    while(true) {
-      const privateKey = crypto.randomBytes(PRIVATE_KEY_LENGTH);
-      if(secp256k1.privateKeyVerify(privateKey)) return privateKey;
-    }
+Signature.generatePrivateKey = (callback) => {
+  if (callback === undefined) {
+    let privateKey;
+
+    do {
+      privateKey = crypto.randomBytes(PRIVATE_KEY_LENGTH);
+    } while (!secp256k1.privateKeyVerify(privateKey));
+
+    return privateKey;
   }
 
-  const self = this;
-  crypto.randomBytes(PRIVATE_KEY_LENGTH, function(err, privateKey) {
-    if(err || secp256k1.privateKeyVerify(privateKey)) return callback(err, privateKey);
+  crypto.randomBytes(PRIVATE_KEY_LENGTH, (err, privateKey) => {
+    if (err || secp256k1.privateKeyVerify(privateKey)) return callback(err, privateKey);
 
-    self.generatePrivateKey(callback);
+    this.generatePrivateKey(callback);
   });
 };
 
-Signature.getPublicKey = function(privateKey) {
+Signature.getPublicKey = (privateKey) => {
   return secp256k1.publicKeyCreate(privateKey);
 };
 
 
 /** public methods **/
 
-proto.toString = function() {
+proto.toString = () => {
   return this.publicKey.toString(BUFFER_ENCODING) +
       this.valueHash.toString(BUFFER_ENCODING) +
       this.timestamp.toISOString();
 };
 
-proto.toBuffer = function() {
+proto.toBuffer = () => {
   const arr = [this.publicKey, this.signature, timeToBuffer(this.timestamp.getTime()), this.valueHash];
   return Buffer.concat(arr, BUFFER_LENGTH);
 };
 
-proto.verify = function() {
-  const hash = Signature.createHash().update(this.valueHash).update(timeToBuffer(this.timestamp.getTime())).digest();
+proto.verify = () => {
+  const hash = Signature.createHash()
+  .update(this.valueHash)
+  .update(timeToBuffer(this.timestamp.getTime()))
+  .digest();
+
   return secp256k1.verify(hash, this.signature, this.publicKey);
 };
 
-proto.betterThen = function(other) {
+proto.betterThen = (other) => {
   return this.timestamp >= other.timestamp;
 };
-
-//proto.equals = function(other) {
-//  return this.publicKey.equals(other.publicKey) &&
-//      this.valueHash.equals(other.valueHash) &&
-//      (this.timestamp - other.timestamp.getTime()) === 0;
-//};
-
-//proto.compareTimestamp = function(other) {
-//  return this.timestamp - other.timestamp;
-//};
 
 
 /** local helpers **/

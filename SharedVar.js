@@ -12,18 +12,17 @@ function SharedVar(shared, publicKey, privateKey = null) {
   this.publicKey = publicKey;
   this.privateKey = privateKey;
 
-  const self = this;
-  this._shared.onPublish(publicKey, function(signature) {
-    if(self.signature && self.signature.betterThen(signature)) return;
+  this._shared.onPublish(publicKey, (signature) => {
+    if (this.signature && this.signature.betterThen(signature)) return;
 
-    self.emit('download', signature);
-    self._shared.download(signature, function(err, value) {
-      if(err) return;
+    this.emit('download', signature);
+    this._shared.download(signature, (err, value) => {
+      if (err) return;
 
-      self.value = value;
-      self.signature = signature;
+      this.value = value;
+      this.signature = signature;
 
-      self.emit('update');
+      this.emit('update');
     });
   });
 }
@@ -31,15 +30,15 @@ util.inherits(SharedVar, EventEmitter);
 const proto = SharedVar.prototype;
 
 
-proto.sync = function(callback) {
+proto.sync = (callback) => {
   this._shared.lookup(this.publicKey, this.signature);
-  if(callback) this.once('update', callback);
+  if (callback) this.once('update', callback);
 
   return this;
 };
 
-proto.set = function(value) {
-  if(!this.privateKey) throw new Error('This reference is readonly');
+proto.set = (value) => {
+  if (!this.privateKey) throw new Error('This reference is readonly');
 
   this.value = value;
 
@@ -50,13 +49,3 @@ proto.set = function(value) {
   this._shared.publish(this.signature, this);
   return this;
 };
-
-//proto.compareTo = function(timestamp) {
-//  if(!this.timestamp) return -1;
-//
-//  return this.timestamp.getTime() - timestamp;
-//};
-
-//proto.forward = function(address, port) {
-//  return this;
-//};

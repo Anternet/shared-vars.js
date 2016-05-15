@@ -1,4 +1,4 @@
-# SharedVars.js
+# shared-vars.js
 A Node.js library for sharing variables between 2 or more endpoints
 
 ** This library is under development **
@@ -11,7 +11,7 @@ const localVar = shared.assign(5.68);
 shared.listen(12345);
 
 const shared2 = new SharedVars();
-shared2.connect('127.0.0.1:12345');
+shared2.ping('127.0.0.1:12345');
 
 const remoteVar = shared2.get(localVar.id);
 
@@ -25,10 +25,10 @@ try {
   assert.equal(err.message, 'This reference is readonly');
 }
 
-assert.equal(localVar.isWriteable, true);
+assert.equal(localVar.isWritable, true);
 localVar.forward('127.0.0.1:123123');
 
-remoteVar.once('writeable', () => {
+remoteVar.once('writable', () => {
   remoteVar.set('hello');
 });
 

@@ -22,6 +22,12 @@ class Signature {
   }
 
 
+  /** consts **/
+
+  static get ID_LENGTH() {
+    return PUBLIC_KEY_LENGTH;
+  }
+
   /** static methods **/
 
   static fromBuffer(buffer) {

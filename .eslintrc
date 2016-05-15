@@ -1,7 +1,6 @@
 {
   "extends": "airbnb-base",
   "rules": {
-    "arrow-body-style": [2, "always"],
     "max-len": [2, 125, 2, {"ignoreComments": true}],
     "no-underscore-dangle": [2, { "allowAfterThis": true }],
     "no-unused-vars": [2, { "argsIgnorePattern": "^_" }],

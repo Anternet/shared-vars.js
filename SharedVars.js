@@ -1,4 +1,3 @@
-const util = require('util');
 const EventEmitter = require('events');
 const dgram = require('dgram');
 const async = require('async');
@@ -18,323 +17,316 @@ const RID_TIMEOUT = 10e3;
 const BUFFER_ENCODING = 'hex';
 const PUBLIC_ASYNC_LIMIT = 100;
 
-function Shared(opts = {}) {
-  if (!(this instanceof Shared)) return new Shared(opts);
+class SharedVars extends EventEmitter {
 
-  Shared.super_.call(this);
+  constructor(opts = {}) {
+    super();
 
-  this._socket = opts.socket || dgram.createSocket(opts);
-  this._parser = new MsgPack();
+    this._rids = {};
+    this._nextRid = Math.random() * RID_MAX;
+    this._requestTypesMap = {
+      [MSG_TYPE_PING]: this._pingHandler,
+    };
 
-  this._rids = {};
-  this._nextRid = Math.random() * RID_MAX;
-  this._requestTypesMap = {
-    [MSG_TYPE_PING]: this._pingHandler,
-  };
+    this._peers = [];
+    this._peersMap = {};
+    this._peersVarsMap = {};
+    this._varsMap = {};
 
-  this._peers = [];
-  this._peersMap = {};
-  this._peersVarsMap = {};
-  this._varsMap = {};
+    this._initSocket(opts.socket || dgram.createSocket(opts));
+    this._parser = new MsgPack();
+  }
 
-  initSocket.call(this, this._socket);
-}
-util.inherits(Shared, EventEmitter);
-module.exports = Shared;
-const proto = Shared.prototype;
+  /** protocol methods **/
 
+  connect(address, port, callback = port) {
+    const rinfo = parseRinfo(address, port);
 
-/** protocol methods **/
-
-proto.connect =
-proto.ping = (address, port, callback = port) => {
-  const rinfo = parseRinfo(address, port);
-
-  const rid = this._genRid(rinfo, (err) => {
-    if (err) {
-      this._removePeer(rinfo);
-    } else {
-      this._addPeer(rinfo);
-    }
-
-    if (callback) callback.call(this, arguments);
-  });
-
-  this.send([MSG_TYPE_PING, rid], rinfo);
-};
-
-proto.assign = (value) => {
-  return new SharedVar(this, null, null, value);
-};
-
-proto.get = (publicKey) => {
-  return new SharedVar(this, publicKey);
-};
-
-proto.lookup = (publicKey, currentSig, callback) => {
-  const key = publicKey.toString(BUFFER_ENCODING);
-
-  let peers = this._peersVarsMap[key];
-  if (!peers) peers = this._peers;
-
-  const newPeers = [];
-  let latest = currentSig || null;
-
-  async.eachLimit(peers, PUBLIC_ASYNC_LIMIT, (peer, callback) => {
-    const rid = this._genRid(peer, (err, data) => {
-      if (err || !data.length) return callback();
-
-      const sig = data[0];
-      if (!(sig instanceof Signature) || !sig.publicKey.equals(publicKey) || !sig.verify()) return callback();
-
-      if (!latest || sig.betterThen(latest)) {
-        latest = sig;
+    const rid = this._genRid(rinfo, (err, data) => {
+      if (err) {
+        this._removePeer(rinfo);
+      } else {
+        this._addPeer(rinfo);
       }
 
-      newPeers.push(peer);
-      callback();
+      if (callback) callback.call(this, null, data, rinfo);
     });
 
-    this.send([MSG_TYPE_GET, rid, publicKey]);
-  }, () => {
-    this._peersVarsMap[key] = newPeers;
+    this.send([MSG_TYPE_PING, rid], rinfo);
+  }
 
-    if (!callback) return;
-    callback(null, latest);
-  });
+  assign(value) {
+    return new SharedVar(this, null, null, value);
+  }
 
-  return this;
-};
+  get(publicKey) {
+    return new SharedVar(this, publicKey);
+  }
 
-proto.publish = (sharedVar, callback) => {
-  const key = sharedVar.publicKey.toString(BUFFER_ENCODING);
-  this._varsMap[key] = sharedVar;
+  lookup(publicKey, currentSig, callback) {
+    const key = publicKey.toString(BUFFER_ENCODING);
 
-  if (!this._peersVarsMap[key]) return this;
+    let peers = this._peersVarsMap[key];
+    if (!peers) peers = this._peers;
 
-  const peers = this._peersVarsMap[key];
-  let errors = 0;
+    const newPeers = [];
+    let latest = currentSig || null;
 
-  async.eachLimit(peers, PUBLIC_ASYNC_LIMIT, (peer, callback) => {
-    const rid = this._genRid(peer, (err) => {
-      if (err) errors++;
-      callback();
+    async.eachLimit(peers, PUBLIC_ASYNC_LIMIT, (peer, callback) => {
+      const rid = this._genRid(peer, (err, data) => {
+        if (err || !data.length) return callback();
+
+        const sig = data[0];
+        if (!(sig instanceof Signature) || !sig.publicKey.equals(publicKey) || !sig.verify()) return callback();
+
+        if (!latest || sig.betterThen(latest)) {
+          latest = sig;
+        }
+
+        newPeers.push(peer);
+        callback();
+      });
+
+      this.send([MSG_TYPE_GET, rid, publicKey]);
+    }, () => {
+      this._peersVarsMap[key] = newPeers;
+
+      if (!callback) return;
+      callback(null, latest);
     });
 
-    this.send([MSG_TYPE_PUBLISH, rid, sharedVar.signature]);
-  }, () => {
-    if (!callback) return;
-
-    callback(null, peers.length - errors);
-  });
-
-  return this;
-};
-
-proto.onPublish = (publicKey, listener) => {
-  const event = publicKey.toString(BUFFER_ENCODING);
-  this.on(event, listener);
-};
-
-// proto.download = (signature, callback) => {
-//
-// };
-
-
-/** socket methods **/
-
-proto.address = () => {
-  return this._socket.address.apply(this._socket, arguments);
-};
-
-proto.send = (data, address, port, callback = port) => {
-  const buf = this._parser.encode(data);
-  const rinfo = parseRinfo(address, port);
-
-  this._socket.send(buf, 0, buf.length, rinfo.port, rinfo.address, callback);
-  return this;
-};
-
-[
-  'bind', 'close',
-  'addMembership', 'dropMembership',
-  'setBroadcast', 'setMulticastLoopback', 'setMulticastTTL',
-  'ref', 'unref',
-].forEach(method => {
-  proto[method] = () => {
-    this._socket[method].apply(this._socket, arguments);
     return this;
-  };
-});
+  }
 
+  publish(sharedVar, callback) {
+    const key = sharedVar.publicKey.toString(BUFFER_ENCODING);
+    this._varsMap[key] = sharedVar;
 
-/** parser methods **/
+    if (!this._peersVarsMap[key]) return this;
 
+    const peers = this._peersVarsMap[key];
+    let errors = 0;
 
-[
-  'register', 'decode', 'encode',
-].forEach(method => {
-  proto[method] = () => {
-    this._socket[method].apply(this._socket, arguments);
+    async.eachLimit(peers, PUBLIC_ASYNC_LIMIT, (peer, callback) => {
+      const rid = this._genRid(peer, (err) => {
+        if (err) errors++;
+        callback();
+      });
+
+      this.send([MSG_TYPE_PUBLISH, rid, sharedVar.signature]);
+    }, () => {
+      if (!callback) return;
+
+      callback(null, peers.length - errors);
+    });
+
     return this;
-  };
-});
-
-
-/** protected methods **/
-
-proto._addPeer = (rinfo) => {
-  const key = `${rinfo.address}:${rinfo.port}`;
-  if (this._peersMap.hasOwnProperty(key)) return;
-
-  const peer = {
-    address: rinfo.address,
-    port: rinfo.port,
-  };
-  this._peersMap[key] = peer;
-};
-
-proto._removePeer = (rinfo) => {
-  const key = `${rinfo.address}:${rinfo.port}`;
-  if (!this._peersMap.hasOwnProperty(key)) return;
-
-  // const peer = this._peersMap[key];
-  delete this._peersMap[key];
-};
-
-proto._handleMessage = (data, rinfo) => {
-  if (!Array.isArray(data) || data.length < 2) return;
-
-  const type = data.shift();
-  const rid = data.shift();
-  if (typeof type !== 'number' || typeof rid !== 'number') return;
-
-  if (type === MSG_TYPE_RESPONSE) {
-    this._handleResponse(data, rid, rinfo);
-  } else if (type > MSG_TYPE_RESPONSE) {
-    this._handleRequest(data, type, rid, rinfo);
-  } else if (type < MSG_TYPE_RESPONSE) {
-    this._handleErrorResponse(data, type, rid, rinfo);
-  }
-};
-
-proto._handleRequest = (data, type, rid, rinfo) => {
-  if (!this._requestTypesMap[type]) {
-    this.send([MSG_TYPE_ERROR_UNKNOWN, rid, 'Unknown request type'], rinfo);
-    return;
   }
 
-  const handler = this._requestTypesMap[type];
-  handler.call(this, data, rid, rinfo);
-};
-
-proto._handleResponse = (data, rid, rinfo) => {
-  const callback = this._getRidCallback(rid, rinfo);
-  if (!callback) return;
-
-  callback(null, data, rinfo);
-};
-
-proto._handleErrorResponse = (data, code, rid, rinfo) => {
-  const callback = this._getRidCallback(rid, rinfo);
-  if (!callback) return;
-
-  const err = new Error(data.shift() || (`error code: ${code}`));
-  err.code = code;
-
-  callback(err, data, rinfo);
-};
-
-proto._pingHandler = (data, rid, rinfo) => {
-  this.send([MSG_TYPE_RESPONSE, rid], rinfo);
-};
-
-proto._close = () => {
-  this._socket = null;
-};
-
-proto._genRid = (rinfo, callback) => {
-  const rid = this._getNextRid();
-
-  const obj = this._rids[rid] = {
-    rinfo,
-    callback,
-    timeout: setTimeout(() => {
-      delete this._rids[rid];
-      obj.callback(new Error('TIMEOUT'));
-    }, RID_TIMEOUT),
-  };
-
-  return rid;
-};
-
-proto._getRidCallback = (rid, rinfo) => {
-  if (!this._rids[rid]) return;
-
-  const obj = this._rids[rid];
-  if (!rinfoEqual(obj.rinfo, rinfo)) return;
-
-  return (err) => {
-    if (obj.callback.apply(self, arguments) === true && !err) return;
-
-    clearTimeout(obj.timeout);
-    delete this._rids[rid];
-  };
-};
-
-proto._getNextRid = () => {
-  const start = this._nextRid;
-  const now = Date.now();
-
-  let rid = this._nextRid++;
-  if (this._nextRid > RID_MAX) this._nextRid = 0;
-
-  while (this._rids[rid] && this._rids[rid].ttl > now) {
-    rid = this._nextRid++;
-    if (this._nextRid > RID_MAX) this._nextRid = 0;
-
-    if (rid === start) throw new Error('No new request ids left');
+  onPublish(publicKey, listener) {
+    const event = publicKey.toString(BUFFER_ENCODING);
+    this.on(event, listener);
   }
 
-  return rid;
-};
+  // download(signature, callback) {}
+
+  /** socket methods **/
+
+  address() {
+    return this._socket.address();
+  }
+
+  send(data, address, port, callback = port) {
+    const buf = this._parser.encode(data);
+    const rinfo = parseRinfo(address, port);
+
+    this._socket.send(buf, 0, buf.length, rinfo.port, rinfo.address, callback);
+    return this;
+  }
+
+  bind(...args) {
+    this._socket.bind.apply(this._socket, args);
+  }
+
+  close() {
+    this._socket.close();
+  }
 
 
-/** local helpers **/
+  /** parser methods **/
 
-function initSocket(socket) {
-  socket.on('close', () => {
-    this._close();
-    this.emit('close');
-  });
+  register(...args) {
+    this._parser.register.apply(this._parser, args);
+  }
 
-  socket.on('error', (err) => {
-    if (!this.emit('error', err)) throw err;
+  decode(...args) {
+    this._parser.decode.apply(this._parser, args);
+  }
 
-    try {
-      this._close();
-    } catch (ex) {
-      // ignore closing errors
+  encode(...args) {
+    this._parser.encode.apply(this._parser, args);
+  }
+
+
+  /** protected methods **/
+
+  _addPeer(rinfo) {
+    const key = `${rinfo.address}:${rinfo.port}`;
+    if (this._peersMap.hasOwnProperty(key)) return;
+
+    const peer = {
+      address: rinfo.address,
+      port: rinfo.port,
+    };
+    this._peersMap[key] = peer;
+  }
+
+  _removePeer(rinfo) {
+    const key = `${rinfo.address}:${rinfo.port}`;
+    if (!this._peersMap.hasOwnProperty(key)) return;
+
+    // const peer = this._peersMap[key];
+    delete this._peersMap[key];
+  }
+
+  _handleMessage(data, rinfo) {
+    if (!Array.isArray(data) || data.length < 2) return;
+
+    const type = data.shift();
+    const rid = data.shift();
+    if (typeof type !== 'number' || typeof rid !== 'number') return;
+
+    if (type === MSG_TYPE_RESPONSE) {
+      this._handleResponse(data, rid, rinfo);
+    } else if (type > MSG_TYPE_RESPONSE) {
+      this._handleRequest(data, type, rid, rinfo);
+    } else if (type < MSG_TYPE_RESPONSE) {
+      this._handleErrorResponse(data, type, rid, rinfo);
     }
-  });
+  }
 
-  socket.on('listening', () => {
-    this.emit('listening');
-  });
-
-  socket.on('message', (buf, rinfo) => {
-    let data;
-
-    try {
-      data = self.decode(buf);
-    } catch (err) {
+  _handleRequest(data, type, rid, rinfo) {
+    if (!this._requestTypesMap[type]) {
+      this.send([MSG_TYPE_ERROR_UNKNOWN, rid, 'Unknown request type'], rinfo);
       return;
     }
 
-    this.emit('message', data, rinfo);
-    this._handleMessage(data, rinfo);
-  });
+    const handler = this._requestTypesMap[type];
+    handler.call(this, data, rid, rinfo);
+  }
+
+  _handleResponse(data, rid, rinfo) {
+    const callback = this._getRidCallback(rid, rinfo);
+    if (!callback) return;
+
+    callback(null, data, rinfo);
+  }
+
+  _handleErrorResponse(data, code, rid, rinfo) {
+    const callback = this._getRidCallback(rid, rinfo);
+    if (!callback) return;
+
+    const err = new Error(data.shift() || (`error code: ${code}`));
+    err.code = code;
+
+    callback(err, data, rinfo);
+  }
+
+  _pingHandler(data, rid, rinfo) {
+    this.send([MSG_TYPE_RESPONSE, rid], rinfo);
+  }
+
+  _initSocket(socket) {
+    this._socket = socket;
+
+    this._socket.on('close', () => {
+      this._close();
+      this.emit('close');
+    });
+
+    socket.on('error', (err) => {
+      if (!this.emit('error', err)) throw err;
+
+      try {
+        this._close();
+      } catch (ex) {
+        // ignore closing errors
+      }
+    });
+
+    socket.on('listening', () => {
+      this.emit('listening');
+    });
+
+    socket.on('message', (buf, rinfo) => {
+      let data;
+
+      try {
+        data = self.decode(buf);
+      } catch (err) {
+        return;
+      }
+
+      this.emit('message', data, rinfo);
+      this._handleMessage(data, rinfo);
+    });
+  }
+
+  _close() {
+    this.socket = null;
+  }
+
+  _genRid(rinfo, callback) {
+    const rid = this._getNextRid();
+
+    const obj = this._rids[rid] = {
+      rinfo,
+      callback,
+      timeout: setTimeout(() => {
+        delete this._rids[rid];
+        obj.callback(new Error('TIMEOUT'));
+      }, RID_TIMEOUT),
+    };
+
+    return rid;
+  }
+
+  _getRidCallback(rid, rinfo) {
+    if (!this._rids[rid]) return;
+
+    const obj = this._rids[rid];
+    if (!rinfoEqual(obj.rinfo, rinfo)) return;
+
+    return (err, data, rinfo2) => {
+      if (obj.callback.call(this, err, data, rinfo2) === true && !err) return;
+
+      clearTimeout(obj.timeout);
+      delete this._rids[rid];
+    };
+  }
+
+  _getNextRid() {
+    const start = this._nextRid;
+    const now = Date.now();
+
+    let rid = this._nextRid++;
+    if (this._nextRid > RID_MAX) this._nextRid = 0;
+
+    while (this._rids[rid] && this._rids[rid].ttl > now) {
+      rid = this._nextRid++;
+      if (this._nextRid > RID_MAX) this._nextRid = 0;
+
+      if (rid === start) throw new Error('No new request ids left');
+    }
+
+    return rid;
+  }
 }
+
+module.exports = SharedVars;
+
+
+/** local helpers **/
 
 function parseRinfo(address, port) {
   if (typeof address !== 'string') return address;

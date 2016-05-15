@@ -3,7 +3,7 @@
   "rules": {
     "arrow-body-style": [2, "always"],
     "max-len": [2, 125, 2, {"ignoreComments": true}],
-    "no-underscore-dangle": 0,
+    "no-underscore-dangle": [2, { "allowAfterThis": true }],
     "no-unused-vars": [2, { "argsIgnorePattern": "^_" }],
     "no-use-before-define": [2, "nofunc"],
     "no-shadow": [2, { "allow": ["callback"] }],

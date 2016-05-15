@@ -194,10 +194,6 @@ class SharedVars extends EventEmitter {
 
   /** parser methods **/
 
-  register(...args) {
-    this._parser.register.apply(this._parser, args);
-  }
-
   decode(...args) {
     this._parser.decode.apply(this._parser, args);
   }

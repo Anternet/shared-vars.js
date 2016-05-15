@@ -1,10 +1,10 @@
 const EventEmitter = require('events');
 const dgram = require('dgram');
 const async = require('async');
-const MsgPack = require('msgpack5');
 const SharedVar = require('./shared-var');
 const Signature = require('./signature');
 const Peer = require('./peer');
+const parser = require('./parser');
 
 const MSG_TYPE_RESPONSE = 0x00;
 const MSG_TYPE_PING = 0x01;
@@ -17,10 +17,6 @@ const RID_TIMEOUT = 10e3;
 
 const BUFFER_ENCODING = 'hex';
 const PUBLIC_ASYNC_LIMIT = 100;
-
-// allowed values: 0..127
-const PARSER_REG_PEER = 101;
-const PARSER_REG_SIGNATURE = 102;
 
 class SharedVars extends EventEmitter {
 
@@ -37,7 +33,7 @@ class SharedVars extends EventEmitter {
     this._vars = new Map();
 
     this._initSocket(opts.socket || dgram.createSocket(opts));
-    this._initParser();
+    this._parser = opts.parser || SharedVars.parser;
   }
 
 
@@ -79,12 +75,6 @@ class SharedVars extends EventEmitter {
     });
   }
 
-  _initParser() {
-    this._parser = new MsgPack();
-    this._parser.register(PARSER_REG_PEER, Peer, peer => peer.toBuffer(), buf => Peer.fromBuffer(buf));
-    this._parser.register(PARSER_REG_SIGNATURE, Signature, sig => sig.toBuffer(), buf => Signature.fromBuffer(buf));
-  }
-
   _close() {
     this.socket = null;
   }
@@ -110,7 +100,7 @@ class SharedVars extends EventEmitter {
     const key = id.toString(BUFFER_ENCODING);
 
     let sharedVar = this._vars.get(key);
-    if(sharedVar) {
+    if (sharedVar) {
       sharedVar = new SharedVar(this, id);
       this._vars.set(key, sharedVar);
     }
@@ -347,4 +337,5 @@ class SharedVars extends EventEmitter {
   }
 }
 
+SharedVars.parser = parser();
 module.exports = SharedVars;

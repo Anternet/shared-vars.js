@@ -10,6 +10,9 @@ exports.SharedVar = SharedVar;
 exports.Signature = Signature;
 exports.Peer = Peer;
 
+// global parser instance
+exports.parser = SharedVars.parser;
+
 // helper functions
-exports.createSharedVars = (opts) => new SharedVars(opts);
-exports.createPeer = (rinfo) => new Peer(rinfo);
+exports.generateSecret = callback => Signature.generatePrivateKey(callback);
+exports.getId = secret => Signature.getPublicKey(secret);

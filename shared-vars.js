@@ -65,7 +65,7 @@ class SharedVars extends EventEmitter {
       let data;
 
       try {
-        data = self.decode(buf);
+        data = this.decode(buf);
       } catch (err) {
         return;
       }

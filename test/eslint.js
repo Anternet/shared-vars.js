@@ -1,11 +1,12 @@
-const lint = require('mocha-eslint');
+const eslint = require('mocha-eslint');
 
 const paths = [
+  '*.js',
   'lib',
   'test',
 ];
 
-lint(paths, {
+eslint(paths, {
   alwaysWarn: false,
   timeout: 5000,
 });

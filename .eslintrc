@@ -5,7 +5,7 @@
     "no-underscore-dangle": [2, { "allowAfterThis": true }],
     "no-unused-vars": [2, { "argsIgnorePattern": "^_" }],
     "no-use-before-define": [2, "nofunc"],
-    "no-shadow": [2, { "allow": ["callback"] }],
+    "no-shadow": [2, { "allow": ["callback", "err"] }],
     "consistent-return": 0
   }
 }

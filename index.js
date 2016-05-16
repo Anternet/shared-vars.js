@@ -1,8 +1,7 @@
-const SharedVars = require('./shared-vars');
-const SharedVar = require('./shared-var');
-const Signature = require('./signature');
-const Peer = require('./peer');
-
+const SharedVars = require('./lib/shared-vars');
+const SharedVar = require('./lib/shared-var');
+const Signature = require('./lib/signature');
+const Peer = require('./lib/peer');
 
 // export classes
 exports.SharedVars = SharedVars;

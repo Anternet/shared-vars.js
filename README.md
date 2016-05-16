@@ -1,9 +1,15 @@
 # shared-vars.js
+
+[![build](https://img.shields.io/travis/anternet/shared-vars.js.svg)](https://travis-ci.org/anternet/shared-vars.js)
+[![npm](https://img.shields.io/npm/v/shared-vars.js.svg)](https://npmjs.org/package/shared-vars.js)
+[![npm](https://img.shields.io/npm/dm/shared-vars.js.svg)](https://npmjs.org/package/shared-vars.js)
+[![npm](https://img.shields.io/npm/l/shared-vars.js.svg)](LICENSE)
+
 A Node.js library for sharing variables between 2 or more endpoints
 
-** This library is under development **
+***This library is under development***
 
-### Example
+## Example
 
 ```js
 const shared = new SharedVars();
@@ -39,6 +45,8 @@ localVar.once('update', timestamp => {
 
 ## License
 
-[MIT](LICENSE). Copyright &copy; 2016 [Moshe Simantov](https://github.com/moshest)
+[MIT License](LICENSE).
+Copyright &copy; 2016 [Moshe Simantov](https://github.com/moshest)
+
 
 

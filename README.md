@@ -1,9 +1,10 @@
 # shared-vars.js
 
-[![build](https://img.shields.io/travis/anternet/shared-vars.js.svg)](https://travis-ci.org/anternet/shared-vars.js)
+[![build](https://img.shields.io/travis/anternet/shared-vars.js.svg?branch=master)](https://travis-ci.org/anternet/shared-vars.js)
 [![npm](https://img.shields.io/npm/v/shared-vars.js.svg)](https://npmjs.org/package/shared-vars.js)
-[![npm](https://img.shields.io/npm/dm/shared-vars.js.svg)](https://npmjs.org/package/shared-vars.js)
+[![Join the chat at https://gitter.im/Anternet/shared-vars.js](https://badges.gitter.im/Anternet/shared-vars.js.svg)](https://gitter.im/Anternet/shared-vars.js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![npm](https://img.shields.io/npm/l/shared-vars.js.svg)](LICENSE)
+
 
 A Node.js library for sharing variables between 2 or more endpoints
 

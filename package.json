@@ -15,8 +15,7 @@
     "node": ">=6.1.0"
   },
   "scripts": {
-    "test": "mocha",
-    "eslint": "node_modules/.bin/eslint ."
+    "test": "mocha"
   },
   "author": "Moshe Simantov <ms@development.co.il> (https://github.com/moshest)",
   "license": "MIT",
@@ -31,7 +30,8 @@
     "eslint-config-airbnb": "^9.0.1",
     "eslint-config-airbnb-base": "^3.0.1",
     "eslint-plugin-import": "^1.8.0",
-    "mocha": "^"
+    "mocha": "^2.4.5",
+    "mocha-eslint": "^2.0.2"
   },
   "repository": {
     "type": "git",

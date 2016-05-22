@@ -33,7 +33,7 @@ try {
 }
 
 assert.equal(localVar.isWritable, true);
-localVar.forward(remoteVar.address());
+localVar.forward(shared.address());
 
 remoteVar.once('writable', () => {
   remoteVar.set('hello');

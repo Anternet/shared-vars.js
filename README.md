@@ -14,16 +14,16 @@ A Node.js library for sharing variables between 2 or more endpoints
 
 ```js
 const shared = new SharedVars();
-const localVar = shared.assign(5.68);
-shared.listen(12345);
+const localVar = shared.assign({foo: 1, bar: 'hi'});
+shared.bind(12345);
 
 const shared2 = new SharedVars();
-shared2.ping('127.0.0.1:12345');
+shared2.ping({ address: '127.0.0.1', port: 12345 });
 
 const remoteVar = shared2.get(localVar.id);
 
 remoteVar.once('update', timestamp => {
-  assert.equal(remoteVar.value, 5.68);
+  assert.deepEqual(remoteVar.value, localVar.value);
 });
 
 try {
@@ -33,7 +33,7 @@ try {
 }
 
 assert.equal(localVar.isWritable, true);
-localVar.forward('127.0.0.1:123123');
+localVar.forward(remoteVar.address());
 
 remoteVar.once('writable', () => {
   remoteVar.set('hello');

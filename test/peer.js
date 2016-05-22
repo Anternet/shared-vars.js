@@ -373,5 +373,8 @@ describe('Peer', () => {
         assert.equal(peer.equals(peer2), true);
       });
     });
+
+    // TODO test signature methods
+    // TODO test statistics methods
   });
 });

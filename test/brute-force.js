@@ -1,6 +1,6 @@
 const assert = require('assert');
 const SharedVars = require('../lib/shared-vars');
-const { describe, it, beforeEach, afterEach } = global;
+const { describe, it } = global;
 
 describe('Brute force', () => {
   it('should sync assign var', (done) => {
